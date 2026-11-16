@@ -12,8 +12,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+
     steps:
-      - name: Baixar repositório
+      - name: Baixar repositorio
         uses: actions/checkout@v4
 
       - name: Configurar Java
@@ -22,33 +25,45 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Configurar Android
-        uses: android-actions/setup-android@v3
-
-      - name: Instalar SDK
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
-
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
 
+      - name: Instalar componentes Android
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "platform-tools"
+
       - name: Extrair projeto
         run: |
           ZIP=$(find . -maxdepth 1 -iname '*.zip' -print -quit)
           if [ -z "$ZIP" ]; then
-            echo "Arquivo ZIP não encontrado"
+            echo "ZIP nao encontrado"
             exit 1
           fi
           mkdir projeto
           unzip -q "$ZIP" -d projeto
 
-      - name: Compilar APK
-        working-directory: projeto
-        run: gradle assembleDebug --no-daemon
+      - name: Localizar projeto Android
+        run: |
+          PROJECT_DIR=$(find projeto -name settings.gradle -type f -printf '%h\n' | head -n 1)
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "settings.gradle nao encontrado"
+            exit 1
+          fi
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-      - name: Disponibilizar APK
+      - name: Compilar APK
+        run: gradle --no-daemon assembleDebug
+        working-directory: ${{ env.PROJECT_DIR }}
+
+      - name: Salvar APK
         uses: actions/upload-artifact@v4
         with:
           name: W7PlayMusic-debug-apk
-          path: projeto/app/build/outputs/apk/debug/app-debug.apk
+          path: projeto/**/app/build/outputs/apk/debug/app-debug.apk
