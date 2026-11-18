@@ -3,7 +3,9 @@ name: Build W7PlayMusic APK
 on:
   workflow_dispatch:
   push:
-    branches: [main, master]
+    branches:
+      - main
+      - master
 
 permissions:
   contents: read
@@ -25,6 +27,17 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Verificar Python
+        run: |
+          python --version
+          python3.11 --version
+          which python3.11
+
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -42,21 +55,27 @@ jobs:
       - name: Extrair projeto
         run: |
           ZIP=$(find . -maxdepth 1 -iname '*.zip' -print -quit)
+
           if [ -z "$ZIP" ]; then
-            echo "ZIP nao encontrado"
+            echo "ZIP nao encontrado na raiz do repositorio"
             exit 1
           fi
+
+          echo "Extraindo: $ZIP"
           mkdir projeto
           unzip -q "$ZIP" -d projeto
 
       - name: Localizar projeto Android
         run: |
           PROJECT_DIR=$(find projeto -name settings.gradle -type f -printf '%h\n' | head -n 1)
+
           if [ -z "$PROJECT_DIR" ]; then
             echo "settings.gradle nao encontrado"
             exit 1
           fi
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Projeto encontrado em: $PROJECT_DIR"
 
       - name: Compilar APK
         run: gradle --no-daemon assembleDebug
@@ -67,3 +86,4 @@ jobs:
         with:
           name: W7PlayMusic-debug-apk
           path: projeto/**/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
